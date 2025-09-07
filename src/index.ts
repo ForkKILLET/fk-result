@@ -11,6 +11,8 @@ export interface IResult<T, E> {
   bind<const Vn, const En>(fn: (val: T) => IResult<Vn, En>): IResult<Vn, E | En>
   bindErr<const Vn, const En>(fn: (err: E) => IResult<Vn, En>): IResult<T | Vn, En>
   match<const Vm, const Em>(onOk: (val: T) => Vm, onErr: (err: E) => Em): Vm | Em
+  tap(fn: (val: T) => void): IResult<T, E>
+  tapErr(fn: (err: E) => void): IResult<T, E>
 }
 
 export class ResultOk<V> implements IResult<V, never> {
@@ -53,10 +55,18 @@ export class ResultOk<V> implements IResult<V, never> {
   bindErr() {
     return this
   }
+
+  tap(fn: (val: V) => void) {
+    fn(this.val)
+    return this
+  }
+  tapErr() {
+    return this
+  }
 }
 
 export class ResultErr<E> implements IResult<never, E> {
-  constructor(public readonly val: E) {}
+  constructor(public readonly err: E) {}
 
   readonly isOk = false
   readonly isErr = true
@@ -65,11 +75,11 @@ export class ResultErr<E> implements IResult<never, E> {
     return false
   }
   isErrAnd(fn: (err: E) => boolean) {
-    return fn(this.val)
+    return fn(this.err)
   }
 
   unwrap(): never {
-    throw this.val
+    throw this.err
   }
   expect(msg?: string): never {
     throw new Error(msg)
@@ -79,21 +89,29 @@ export class ResultErr<E> implements IResult<never, E> {
   }
 
   match<const Vm, const Em>(_: (val: never) => Vm, onErr: (err: E) => Em): Vm | Em {
-    return onErr(this.val)
+    return onErr(this.err)
   }
 
   map() {
     return this
   }
   mapErr<const En>(fn: (err: E) => En) {
-    return Result.err(fn(this.val))
+    return Result.err(fn(this.err))
   }
 
   bind() {
     return this
   }
   bindErr<const Vn, const En>(fn: (err: E) => Result<Vn, En>) {
-    return fn(this.val)
+    return fn(this.err)
+  }
+
+  tap() {
+    return this
+  }
+  tapErr(fn: (err: E) => void) {
+    fn(this.err)
+    return this
   }
 }
 
@@ -130,7 +148,7 @@ export namespace Result {
     const errs = [] as { [I in keyof Rs]: InferErr<Rs[I]> }
     for (const result of results) {
       if (result.isOk) return result
-      errs.push(result.val)
+      errs.push(result.err)
     }
     return Result.err(errs)
   }
