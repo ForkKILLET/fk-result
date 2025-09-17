@@ -6,22 +6,22 @@ export interface IResult<T, E> {
   unwrap(): T
   expect(msg?: string): T
   unwrapOr(def: T): T
-  map<const Vn>(fn: (val: T) => Vn): IResult<Vn, E>
-  mapErr<const En>(fn: (err: E) => En): IResult<T, En>
-  bind<const Vn, const En>(fn: (val: T) => IResult<Vn, En>): IResult<Vn, E | En>
-  bindErr<const Vn, const En>(fn: (err: E) => IResult<Vn, En>): IResult<T | Vn, En>
-  match<const Vm, const Em>(onOk: (val: T) => Vm, onErr: (err: E) => Em): Vm | Em
+  map<const To>(fn: (val: T) => To): IResult<To, E>
+  mapErr<const Eo>(fn: (err: E) => Eo): IResult<T, Eo>
+  bind<const To, const Eo>(fn: (val: T) => IResult<To, Eo>): IResult<To, E | Eo>
+  bindErr<const To, const Eo>(fn: (err: E) => IResult<To, Eo>): IResult<T | To, Eo>
+  match<const To, const Eo>(onOk: (val: T) => To, onErr: (err: E) => Eo): To | Eo
   tap(fn: (val: T) => void): IResult<T, E>
   tapErr(fn: (err: E) => void): IResult<T, E>
 }
 
-export class ResultOk<V> implements IResult<V, never> {
-  constructor(public readonly val: V) {}
+export class ResultOk<T> implements IResult<T, never> {
+  constructor(public readonly val: T) {}
 
   readonly isOk = true
   readonly isErr = false
 
-  isOkAnd(fn: (val: V) => boolean) {
+  isOkAnd(fn: (val: T) => boolean) {
     return fn(this.val)
   }
   isErrAnd() {
@@ -38,25 +38,25 @@ export class ResultOk<V> implements IResult<V, never> {
     return this.val
   }
 
-  match<const Vm, const Em>(onOk: (val: V) => Vm, _: (err: never) => Em): Vm | Em {
+  match<const To, const Eo>(onOk: (val: T) => To, _: (err: never) => Eo): To | Eo {
     return onOk(this.val)
   }
 
-  map<const Vn>(fn: (val: V) => Vn) {
+  map<const To>(fn: (val: T) => To) {
     return Result.ok(fn(this.val))
   }
   mapErr() {
     return this
   }
 
-  bind<const Vn, const En>(fn: (val: V) => Result<Vn, En>) {
+  bind<const To, const Eo>(fn: (val: T) => Result<To, Eo>) {
     return fn(this.val)
   }
   bindErr() {
     return this
   }
 
-  tap(fn: (val: V) => void) {
+  tap(fn: (val: T) => void) {
     fn(this.val)
     return this
   }
@@ -88,21 +88,21 @@ export class ResultErr<E> implements IResult<never, E> {
     return def
   }
 
-  match<const Vm, const Em>(_: (val: never) => Vm, onErr: (err: E) => Em): Vm | Em {
+  match<const To, const Eo>(_: (val: never) => To, onErr: (err: E) => Eo): To | Eo {
     return onErr(this.err)
   }
 
   map() {
     return this
   }
-  mapErr<const En>(fn: (err: E) => En) {
+  mapErr<const Eo>(fn: (err: E) => Eo) {
     return Result.err(fn(this.err))
   }
 
   bind() {
     return this
   }
-  bindErr<const Vn, const En>(fn: (err: E) => Result<Vn, En>) {
+  bindErr<const To, const Eo>(fn: (err: E) => Result<To, Eo>) {
     return fn(this.err)
   }
 
@@ -113,14 +113,15 @@ export class ResultErr<E> implements IResult<never, E> {
     fn(this.err)
     return this
   }
+
 }
 
-export const Ok = <const V>(val: V): Result<V, never> => new ResultOk(val)
+export const Ok = <const T>(val: T): Result<T, never> => new ResultOk(val)
 export const Err = <const E>(err: E): Result<never, E> => new ResultErr(err)
 
-export type Result<V, E> = ResultOk<V> | ResultErr<E>
+export type Result<T, E> = ResultOk<T> | ResultErr<E>
 
-export type InferVal<R extends Result<any, any>> = R extends ResultOk<infer V> ? V : never
+export type InferVal<R extends Result<any, any>> = R extends ResultOk<infer T> ? T : never
 export type InferErr<R extends Result<any, any>> = R extends ResultErr<infer E> ? E : never
 
 export namespace Result {
@@ -153,7 +154,7 @@ export namespace Result {
     return Result.err(errs)
   }
 
-  export const wrap = <V, E>(fn: () => V): Result<V, E> => {
+  export const wrap = <T, E>(fn: () => T): Result<T, E> => {
     try {
       return Result.ok(fn())
     }
@@ -161,4 +162,10 @@ export namespace Result {
       return Result.err(err as E)
     }
   }
+
+  export const fold = <T, E, To>(list: T[], init: To, folder: (acc: To, curr: T, index: number) => Result<To, E>): Result<To, E> =>
+    list.reduce<Result<To, E>>(
+      (accResult, curr, index) => accResult.bind(acc => folder(acc, curr, index)),
+      Result.ok(init),
+    )
 }
