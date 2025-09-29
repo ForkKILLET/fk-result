@@ -6,13 +6,14 @@ export interface IResult<T, E> {
   unwrap(): T
   expect(msg?: string): T
   unwrapOr(def: T): T
-  map<const To>(fn: (val: T) => To): IResult<To, E>
-  mapErr<const Eo>(fn: (err: E) => Eo): IResult<T, Eo>
-  bind<const To, const Eo>(fn: (val: T) => IResult<To, Eo>): IResult<To, E | Eo>
-  bindErr<const To, const Eo>(fn: (err: E) => IResult<To, Eo>): IResult<T | To, Eo>
+  map<const To>(fn: (val: T) => To): Result<To, E>
+  mapErr<const Eo>(fn: (err: E) => Eo): Result<T, Eo>
+  bind<const To, const Eo>(fn: (val: T) => Result<To, Eo>): Result<To, E | Eo>
+  bindErr<const To, const Eo>(fn: (err: E) => Result<To, Eo>): Result<T | To, Eo>
   match<const To, const Eo>(onOk: (val: T) => To, onErr: (err: E) => Eo): To | Eo
-  tap(fn: (val: T) => void): IResult<T, E>
-  tapErr(fn: (err: E) => void): IResult<T, E>
+  union(): T | E
+  tap(fn: (val: T) => void): Result<T, E>
+  tapErr(fn: (err: E) => void): Result<T, E>
 }
 
 export class ResultOk<T> implements IResult<T, never> {
@@ -40,6 +41,9 @@ export class ResultOk<T> implements IResult<T, never> {
 
   match<const To, const Eo>(onOk: (val: T) => To, _: (err: never) => Eo): To | Eo {
     return onOk(this.val)
+  }
+  union(): T {
+    return this.val
   }
 
   map<const To>(fn: (val: T) => To) {
@@ -91,6 +95,9 @@ export class ResultErr<E> implements IResult<never, E> {
   match<const To, const Eo>(_: (val: never) => To, onErr: (err: E) => Eo): To | Eo {
     return onErr(this.err)
   }
+  union(): E {
+    return this.err
+  }
 
   map() {
     return this
@@ -113,7 +120,6 @@ export class ResultErr<E> implements IResult<never, E> {
     fn(this.err)
     return this
   }
-
 }
 
 export const Ok = <const T>(val: T): Result<T, never> => new ResultOk(val)
@@ -163,9 +169,12 @@ export namespace Result {
     }
   }
 
-  export const fold = <T, E, To>(list: T[], init: To, folder: (acc: To, curr: T, index: number) => Result<To, E>): Result<To, E> =>
-    list.reduce<Result<To, E>>(
-      (accResult, curr, index) => accResult.bind(acc => folder(acc, curr, index)),
-      Result.ok(init),
-    )
+  export const fold = <T, E, To>(
+    list: T[],
+    init: To,
+    folder: (acc: To, curr: T, index: number) => Result<To, E>
+  ): Result<To, E> => list.reduce<Result<To, E>>(
+    (accResult, curr, index) => accResult.bind(acc => folder(acc, curr, index)),
+    Result.ok(init),
+  )
 }
