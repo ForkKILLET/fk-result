@@ -4,6 +4,7 @@ export interface IResult<T, E> {
   isOkAnd(fn: (val: T) => boolean): boolean
   isErrAnd(fn: (err: E) => boolean): boolean
   unwrap(): T
+  unwrapBy(unwrapper: (err: E) => never): T
   expect(msg?: string): T
   unwrapOr(def: T): T
   map<const To>(fn: (val: T) => To): Result<To, E>
@@ -30,6 +31,9 @@ export class ResultOk<T> implements IResult<T, never> {
   }
 
   unwrap() {
+    return this.val
+  }
+  unwrapBy() {
     return this.val
   }
   expect() {
@@ -84,6 +88,9 @@ export class ResultErr<E> implements IResult<never, E> {
 
   unwrap(): never {
     throw this.err
+  }
+  unwrapBy(unwrapper: (err: E) => never): never {
+    unwrapper(this.err)
   }
   expect(msg?: string): never {
     throw new Error(msg)
@@ -177,4 +184,21 @@ export namespace Result {
     (accResult, curr, index) => accResult.bind(acc => folder(acc, curr, index)),
     Result.ok(init),
   )
+
+  export const isOk = <T, E>(result: Result<T, E>): boolean => result.isOk
+  export const isErr = <T, E>(result: Result<T, E>) => result.isErr
+  export const isOkAnd = <T, E>(fn: (val: T) => boolean) => (result: Result<T, E>) => result.isOkAnd(fn)
+  export const isErrAnd = <T, E>(fn: (err: E) => boolean) => (result: Result<T, E>) => result.isErrAnd(fn)
+  export const unwrap = <T, E>(result: Result<T, E>) => result.unwrap()
+  export const unwrapBy = <T, E>(unwrapper: (err: E) => never) => (result: Result<T, E>) => result.unwrapBy(unwrapper)
+  export const expect = <T, E>(msg?: string) => (result: Result<T, E>) => result.expect(msg)
+  export const unwrapOr = <T, E>(def: T) => (result: Result<T, E>) => result.unwrapOr(def)
+  export const map = <T, E, To>(fn: (val: T) => To) => (result: Result<T, E>) => result.map(fn)
+  export const mapErr = <T, E, Eo>(fn: (err: E) => Eo) => (result: Result<T, E>) => result.mapErr(fn)
+  export const bind = <T, E, To, Eo>(fn: (val: T) => Result<To, Eo>) => (result: Result<T, E>) => result.bind(fn)
+  export const bindErr = <T, E, To, Eo>(fn: (err: E) => Result<To, Eo>) => (result: Result<T, E>) => result.bindErr(fn)
+  export const match = <T, E, To, Eo>(onOk: (val: T) => To, onErr: (err: E) => Eo) => (result: Result<T, E>) => result.match(onOk, onErr)
+  export const union = <T, E>(result: Result<T, E>) => result.union()
+  export const tap = <T, E>(fn: (val: T) => void) => (result: Result<T, E>) => result.tap(fn)
+  export const tapErr = <T, E>(fn: (err: E) => void) => (result: Result<T, E>) => result.tapErr(fn)
 }
